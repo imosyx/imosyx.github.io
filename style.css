@@ -1,18 +1,239 @@
-body{
-  font-family: Arial, sans-serif;
+/* ── Reset & Variables ───────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #f9f7f4;
+  --ink:      #1a1814;
+  --muted:    #8a8480;
+  --accent:   #c8a97e;
+  --border:   #e2ddd8;
+  --card-bg:  #ffffff;
+  --nav-h:    68px;
+  --ease:     cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Base ───────────────────────────────────────────── */
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Nav ────────────────────────────────────────────── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  height: var(--nav-h);
+}
+
+.nav {
+  max-width: 960px;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+}
+
+.logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.nav-tabs {
+  list-style: none;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tab {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  transition: color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.tab:hover { color: var(--ink); }
+
+.tab.active {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* ── Pages ──────────────────────────────────────────── */
+main { flex: 1; }
+
+.page {
+  display: none;
+  opacity: 0;
+  animation: fadeUp 0.4s var(--ease) forwards;
+}
+
+.page.active { display: block; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Hero ───────────────────────────────────────────── */
+.hero {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 7rem 2rem 6rem;
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1.25rem;
+}
+
+h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(2.8rem, 6vw, 5rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+}
+
+h1 em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.sub {
+  font-size: 1.05rem;
+  color: var(--muted);
+  font-weight: 300;
+  max-width: 400px;
+  line-height: 1.65;
+  margin-bottom: 2.5rem;
+}
+
+/* ── Button ─────────────────────────────────────────── */
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.75rem;
+  background: var(--ink);
+  color: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s var(--ease), transform 0.15s var(--ease);
+}
+
+.btn:hover {
+  background: #333;
+  transform: translateY(-1px);
+}
+
+.btn:active { transform: translateY(0); }
+
+/* ── Content blocks ─────────────────────────────────── */
+.content-block {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 6rem 2rem;
+}
+
+h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.025em;
+  margin-bottom: 1.5rem;
+  line-height: 1.1;
+}
+
+.body-text {
+  font-size: 1rem;
+  color: var(--muted);
+  font-weight: 300;
+  line-height: 1.75;
+  max-width: 520px;
+  margin-bottom: 1rem;
+}
+
+/* ── Card Grid ──────────────────────────────────────── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-top: 2.5rem;
+  background: var(--border);
+}
+
+.card {
+  background: var(--card-bg);
+  padding: 2rem;
+  transition: background 0.2s var(--ease);
+}
+
+.card:hover { background: #faf9f7; }
+
+.card-num {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.card h3 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.card p {
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ── Footer ─────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 1.5rem 2rem;
   text-align: center;
-  background:#f4f4f4;
-  margin:0;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
-header{
-  background:#222;
-  color:white;
-  padding:20px;
-}
-
-button{
-  padding:10px 20px;
-  font-size:16px;
-  cursor:pointer;
+/* ── Responsive ─────────────────────────────────────── */
+@media (max-width: 560px) {
+  .nav { padding: 0 1.25rem; }
+  .nav-tabs { gap: 0; }
+  .tab { padding: 0.4rem 0.65rem; }
+  .hero, .content-block { padding-left: 1.25rem; padding-right: 1.25rem; }
 }
