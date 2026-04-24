@@ -6,29 +6,28 @@
 
 <style>
 body {
-    background: #0f1117;
+    background: #0d1117;
     color: #e6edf3;
-    font-family: Arial, sans-serif;
+    font-family: Arial;
     text-align: center;
-    padding: 40px;
+    padding: 30px;
 }
 
-.container {
+.box {
     background: #161b22;
     padding: 20px;
     border-radius: 10px;
     max-width: 500px;
     margin: auto;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    box-shadow: 0 0 15px rgba(0,0,0,0.6);
 }
 
 input, button {
     width: 100%;
     padding: 10px;
-    margin: 8px 0;
+    margin: 6px 0;
     border: none;
     border-radius: 6px;
-    font-size: 14px;
 }
 
 input {
@@ -47,10 +46,10 @@ button:hover {
 }
 
 pre {
-    text-align: left;
     background: #0d1117;
     padding: 10px;
     border-radius: 6px;
+    text-align: left;
     overflow-x: auto;
 }
 </style>
@@ -58,21 +57,17 @@ pre {
 
 <body>
 
-<div id="errorScreen">
-    <h2>Error: couldn't fetch</h2>
-</div>
+<h2 id="status">Error: couldn't fetch</h2>
 
-<div id="loginScreen" class="container" style="display:none;">
-    <h2>Login</h2>
-    <input id="username" placeholder="Username">
-    <input id="password" type="password" placeholder="Password">
+<div id="login" class="box" style="display:none;">
+    <h3>Login</h3>
+    <input id="user" placeholder="Username">
+    <input id="pass" type="password" placeholder="Password">
     <button onclick="login()">Login</button>
 </div>
 
 <div id="panel" style="display:none;">
-    <div class="container">
-        <h2>Key Manager</h2>
-
+    <div class="box">
         <h3>Add Key</h3>
         <input id="owner" placeholder="Owner">
         <input id="key" placeholder="Key">
@@ -80,7 +75,7 @@ pre {
         <input id="notes" placeholder="Notes">
         <button onclick="addKey()">Add Key</button>
 
-        <h3>Manage Key</h3>
+        <h3>Manage</h3>
         <input id="manageId" placeholder="Key ID">
         <button onclick="revokeKey()">Revoke</button>
         <button onclick="deleteKey()">Delete</button>
@@ -91,78 +86,89 @@ pre {
 </div>
 
 <script>
-const USER = "imo";
-const PASS = "tensaiclueless";
+const API = "https://hidden-wildflower-4db0.alexexum21.workers.dev";
+const AUTH = "tensaiclueless";
 
-let db = JSON.parse(localStorage.getItem("keysDB")) || { keys: [] };
-
-function save() {
-    localStorage.setItem("keysDB", JSON.stringify(db));
-    render();
-}
-
-function generateId() {
-    return "key_" + Math.random().toString(36).substr(2, 9);
-}
-
+// fake login (UI only)
 function login() {
-    let u = document.getElementById("username").value;
-    let p = document.getElementById("password").value;
+    let u = document.getElementById("user").value;
+    let p = document.getElementById("pass").value;
 
-    if (u === USER && p === PASS) {
-        document.getElementById("loginScreen").style.display = "none";
+    if (u === "imo" && p === "tensaiclueless") {
+        document.getElementById("login").style.display = "none";
         document.getElementById("panel").style.display = "block";
-        render();
+        loadKeys();
     } else {
-        alert("Invalid login");
+        alert("wrong login");
     }
 }
 
-function addKey() {
+// load keys
+async function loadKeys() {
+    let res = await fetch(API + "/get", {
+        headers: { Authorization: AUTH }
+    });
+
+    let data = await res.json();
+    document.getElementById("output").textContent =
+        JSON.stringify(data, null, 2);
+}
+
+// add
+async function addKey() {
     let owner = document.getElementById("owner").value;
     let key = document.getElementById("key").value;
     let expires = document.getElementById("expires").value;
     let notes = document.getElementById("notes").value;
 
-    if (!owner || !key) return alert("Missing fields");
-
-    db.keys.push({
-        id: generateId(),
-        owner,
-        key,
-        created: new Date().toISOString(),
-        expires: expires || null,
-        revoked: false,
-        notes: notes || ""
+    await fetch(API + "/add", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: AUTH
+        },
+        body: JSON.stringify({ owner, key, expires, notes })
     });
 
-    save();
+    loadKeys();
 }
 
-function revokeKey() {
+// revoke
+async function revokeKey() {
     let id = document.getElementById("manageId").value;
-    let k = db.keys.find(x => x.id === id);
-    if (k) {
-        k.revoked = true;
-        save();
-    }
+
+    await fetch(API + "/revoke", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: AUTH
+        },
+        body: JSON.stringify({ id })
+    });
+
+    loadKeys();
 }
 
-function deleteKey() {
+// delete
+async function deleteKey() {
     let id = document.getElementById("manageId").value;
-    db.keys = db.keys.filter(x => x.id !== id);
-    save();
+
+    await fetch(API + "/delete", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: AUTH
+        },
+        body: JSON.stringify({ id })
+    });
+
+    loadKeys();
 }
 
-function render() {
-    document.getElementById("output").textContent =
-        JSON.stringify(db, null, 2);
-}
-
-// simulate "hidden" page first
+// show login after fake delay
 setTimeout(() => {
-    document.getElementById("errorScreen").style.display = "none";
-    document.getElementById("loginScreen").style.display = "block";
+    document.getElementById("status").style.display = "none";
+    document.getElementById("login").style.display = "block";
 }, 800);
 </script>
 
