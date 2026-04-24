@@ -1,91 +1,97 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Website</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+    <title>Key Manager</title>
 </head>
 <body>
 
-  <header>
-    <nav class="nav">
-      <span class="logo">mySite</span>
-      <ul class="nav-tabs">
-        <li><a href="#" class="tab active" data-tab="home">Home</a></li>
-        <li><a href="#" class="tab" data-tab="about">About</a></li>
-        <li><a href="#" class="tab" data-tab="work">Work</a></li>
-        <li><a href="#" class="tab" data-tab="contact">Contact</a></li>
-      </ul>
-    </nav>
-  </header>
+<h2>Key Manager</h2>
 
-  <main>
+<div>
+    <h3>Add Key</h3>
+    <input id="owner" placeholder="Owner Name"><br><br>
+    <input id="key" placeholder="Key Value"><br><br>
+    <input id="expires" type="datetime-local"><br><br>
+    <input id="notes" placeholder="Notes"><br><br>
+    <button onclick="addKey()">Add Key</button>
+</div>
 
-    <!-- HOME -->
-    <section class="page active" id="home">
-      <div class="hero">
-        <p class="eyebrow">Welcome</p>
-        <h1>Hosted on<br><em>GitHub Pages.</em></h1>
-        <p class="sub">A clean, minimal site to share your work with the world.</p>
-        <button class="btn" onclick="sayHello()">Say hello</button>
-      </div>
-    </section>
+<hr>
 
-    <!-- ABOUT -->
-    <section class="page" id="about">
-      <div class="content-block">
-        <p class="eyebrow">About</p>
-        <h2>Who I am</h2>
-        <p class="body-text">This is the about section. Tell the world a little about yourself — your background, your interests, what drives you.</p>
-        <p class="body-text">Keep it short. Keep it honest.</p>
-      </div>
-    </section>
+<div>
+    <h3>Manage Key</h3>
+    <input id="manageId" placeholder="Key ID"><br><br>
+    <button onclick="revokeKey()">Revoke</button>
+    <button onclick="deleteKey()">Delete</button>
+</div>
 
-    <!-- WORK -->
-    <section class="page" id="work">
-      <div class="content-block">
-        <p class="eyebrow">Work</p>
-        <h2>Selected projects</h2>
-        <div class="card-grid">
-          <div class="card">
-            <span class="card-num">01</span>
-            <h3>Project One</h3>
-            <p>A short description of the project goes here.</p>
-          </div>
-          <div class="card">
-            <span class="card-num">02</span>
-            <h3>Project Two</h3>
-            <p>A short description of the project goes here.</p>
-          </div>
-          <div class="card">
-            <span class="card-num">03</span>
-            <h3>Project Three</h3>
-            <p>A short description of the project goes here.</p>
-          </div>
-        </div>
-      </div>
-    </section>
+<hr>
 
-    <!-- CONTACT -->
-    <section class="page" id="contact">
-      <div class="content-block">
-        <p class="eyebrow">Contact</p>
-        <h2>Get in touch</h2>
-        <p class="body-text">Have a project in mind? Drop a line and let's talk.</p>
-        <a href="mailto:hello@example.com" class="btn">hello@example.com</a>
-      </div>
-    </section>
+<h3>Raw Data (for your program)</h3>
+<pre id="output"></pre>
 
-  </main>
+<script>
+let db = JSON.parse(localStorage.getItem("keysDB")) || {
+    keys: []
+};
 
-  <footer>
-    <span>© 2026 mySite</span>
-  </footer>
+function save() {
+    localStorage.setItem("keysDB", JSON.stringify(db));
+    render();
+}
 
-  <script src="script.js"></script>
+function generateId() {
+    return "key_" + Math.random().toString(36).substr(2, 9);
+}
+
+function addKey() {
+    let owner = document.getElementById("owner").value;
+    let key = document.getElementById("key").value;
+    let expires = document.getElementById("expires").value;
+    let notes = document.getElementById("notes").value;
+
+    if (!owner || !key) {
+        alert("Owner and key required");
+        return;
+    }
+
+    db.keys.push({
+        id: generateId(),
+        owner: owner,
+        key: key,
+        created: new Date().toISOString(),
+        expires: expires || null,
+        revoked: false,
+        notes: notes || ""
+    });
+
+    save();
+}
+
+function revokeKey() {
+    let id = document.getElementById("manageId").value;
+    let k = db.keys.find(x => x.id === id);
+    if (k) {
+        k.revoked = true;
+        save();
+    } else {
+        alert("Key not found");
+    }
+}
+
+function deleteKey() {
+    let id = document.getElementById("manageId").value;
+    db.keys = db.keys.filter(x => x.id !== id);
+    save();
+}
+
+function render() {
+    document.getElementById("output").textContent =
+        JSON.stringify(db, null, 2);
+}
+
+render();
+</script>
+
 </body>
 </html>
