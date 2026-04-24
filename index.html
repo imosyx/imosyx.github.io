@@ -1,176 +1,74 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Key Manager</title>
-
-<style>
-body {
-    background: #0d1117;
-    color: #e6edf3;
-    font-family: Arial;
-    text-align: center;
-    padding: 30px;
-}
-
-.box {
-    background: #161b22;
-    padding: 20px;
-    border-radius: 10px;
-    max-width: 500px;
-    margin: auto;
-    box-shadow: 0 0 15px rgba(0,0,0,0.6);
-}
-
-input, button {
-    width: 100%;
-    padding: 10px;
-    margin: 6px 0;
-    border: none;
-    border-radius: 6px;
-}
-
-input {
-    background: #0d1117;
-    color: white;
-}
-
-button {
-    background: #238636;
-    color: white;
-    cursor: pointer;
-}
-
-button:hover {
-    background: #2ea043;
-}
-
-pre {
-    background: #0d1117;
-    padding: 10px;
-    border-radius: 6px;
-    text-align: left;
-    overflow-x: auto;
-}
-</style>
-</head>
-
-<body>
-
-<h2 id="status">Error: couldn't fetch</h2>
-
-<div id="login" class="box" style="display:none;">
-    <h3>Login</h3>
-    <input id="user" placeholder="Username">
-    <input id="pass" type="password" placeholder="Password">
-    <button onclick="login()">Login</button>
-</div>
-
-<div id="panel" style="display:none;">
-    <div class="box">
-        <h3>Add Key</h3>
-        <input id="owner" placeholder="Owner">
-        <input id="key" placeholder="Key">
-        <input id="expires" type="datetime-local">
-        <input id="notes" placeholder="Notes">
-        <button onclick="addKey()">Add Key</button>
-
-        <h3>Manage</h3>
-        <input id="manageId" placeholder="Key ID">
-        <button onclick="revokeKey()">Revoke</button>
-        <button onclick="deleteKey()">Delete</button>
-
-        <h3>Data</h3>
-        <pre id="output"></pre>
-    </div>
-</div>
-
-<script>
 const API = "https://hidden-wildflower-4db0.alexexum21.workers.dev";
-const AUTH = "tensaiclueless";
+let TOKEN = null;
 
-// fake login (UI only)
-function login() {
-    let u = document.getElementById("user").value;
-    let p = document.getElementById("pass").value;
+// LOGIN
+async function login() {
+    let user = document.getElementById("user").value;
+    let pass = document.getElementById("pass").value;
 
-    if (u === "imo" && p === "tensaiclueless") {
-        document.getElementById("login").style.display = "none";
-        document.getElementById("panel").style.display = "block";
-        loadKeys();
-    } else {
-        alert("wrong login");
-    }
-}
-
-// load keys
-async function loadKeys() {
-    let res = await fetch(API + "/get", {
-        headers: { Authorization: AUTH }
+    let res = await fetch(API + "/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ user, pass })
     });
+
+    if (!res.ok) return alert("login failed");
 
     let data = await res.json();
-    document.getElementById("output").textContent =
-        JSON.stringify(data, null, 2);
+    TOKEN = data.token;
+
+    document.getElementById("login").style.display = "none";
+    document.getElementById("panel").style.display = "block";
+
+    loadKeys();
 }
 
-// add
-async function addKey() {
-    let owner = document.getElementById("owner").value;
-    let key = document.getElementById("key").value;
-    let expires = document.getElementById("expires").value;
-    let notes = document.getElementById("notes").value;
+// AUTH HEADER
+function auth() {
+    return {
+        "Content-Type": "application/json",
+        "Authorization": TOKEN
+    };
+}
 
+// LOAD
+async function loadKeys() {
+    let res = await fetch(API + "/get", { headers: auth() });
+    let data = await res.json();
+    output.textContent = JSON.stringify(data, null, 2);
+}
+
+// ADD
+async function addKey() {
     await fetch(API + "/add", {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: AUTH
-        },
-        body: JSON.stringify({ owner, key, expires, notes })
+        headers: auth(),
+        body: JSON.stringify({
+            owner: owner.value,
+            key: key.value,
+            expires: expires.value,
+            notes: notes.value
+        })
     });
-
     loadKeys();
 }
 
-// revoke
+// REVOKE
 async function revokeKey() {
-    let id = document.getElementById("manageId").value;
-
     await fetch(API + "/revoke", {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: AUTH
-        },
-        body: JSON.stringify({ id })
+        headers: auth(),
+        body: JSON.stringify({ id: manageId.value })
     });
-
     loadKeys();
 }
 
-// delete
+// DELETE
 async function deleteKey() {
-    let id = document.getElementById("manageId").value;
-
     await fetch(API + "/delete", {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: AUTH
-        },
-        body: JSON.stringify({ id })
+        headers: auth(),
+        body: JSON.stringify({ id: manageId.value })
     });
-
     loadKeys();
 }
-
-// show login after fake delay
-setTimeout(() => {
-    document.getElementById("status").style.display = "none";
-    document.getElementById("login").style.display = "block";
-}, 800);
-</script>
-
-</body>
-</html>
