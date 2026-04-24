@@ -1,7 +1,125 @@
-const API = "https://hidden-wildflower-4db0.alexexum21.workers.dev";
-let TOKEN = null;
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Key Manager</title>
 
-// LOGIN
+<style>
+body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: Arial;
+    text-align: center;
+    padding: 30px;
+}
+
+.box {
+    background: #161b22;
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 500px;
+    margin: auto;
+    box-shadow: 0 0 15px rgba(0,0,0,0.6);
+}
+
+input, button {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border: none;
+    border-radius: 6px;
+}
+
+input {
+    background: #0d1117;
+    color: white;
+}
+
+button {
+    background: #238636;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #2ea043;
+}
+
+pre {
+    background: #0d1117;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: left;
+    overflow-x: auto;
+}
+</style>
+</head>
+
+<body>
+
+<h2 id="status">Error: couldn't fetch</h2>
+
+<div id="login" class="box" style="display:none;">
+    <h3>Login</h3>
+    <input id="user" placeholder="Username">
+    <input id="pass" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+</div>
+
+<div id="panel" style="display:none;">
+    <div class="box">
+        <h3>Add Key</h3>
+        <input id="owner" placeholder="Owner">
+        <input id="key" placeholder="Key">
+        <input id="expires" type="datetime-local">
+        <input id="notes" placeholder="Notes">
+        <button onclick="addKey()">Add Key</button>
+
+        <h3>Manage</h3>
+        <input id="manageId" placeholder="Key ID">
+        <button onclick="revokeKey()">Revoke</button>
+        <button onclick="deleteKey()">Delete</button>
+
+        <h3>Data</h3>
+        <pre id="output"></pre>
+    </div>
+</div>
+
+<script>
+// --------- SPLIT API (your name hidden in parts) ---------
+const a = "https://hidden";
+const b = "-wildflower";
+const c = "-4db0";
+
+const d1 = "ale";
+const d2 = "xex";
+const d3 = "um21";
+
+const e1 = "work";
+const e2 = "ers.dev";
+
+const API = a + b + c + "." + d1 + d2 + d3 + "." + e1 + e2;
+
+// --------- STATE ---------
+let TOKEN = localStorage.getItem("token") || null;
+
+// elements
+const output = document.getElementById("output");
+const owner = document.getElementById("owner");
+const key = document.getElementById("key");
+const expires = document.getElementById("expires");
+const notes = document.getElementById("notes");
+const manageId = document.getElementById("manageId");
+
+// --------- AUTH ---------
+function auth() {
+    return {
+        "Content-Type": "application/json",
+        "Authorization": TOKEN
+    };
+}
+
+// --------- LOGIN ---------
 async function login() {
     let user = document.getElementById("user").value;
     let pass = document.getElementById("pass").value;
@@ -16,6 +134,7 @@ async function login() {
 
     let data = await res.json();
     TOKEN = data.token;
+    localStorage.setItem("token", TOKEN);
 
     document.getElementById("login").style.display = "none";
     document.getElementById("panel").style.display = "block";
@@ -23,24 +142,24 @@ async function login() {
     loadKeys();
 }
 
-// AUTH HEADER
-function auth() {
-    return {
-        "Content-Type": "application/json",
-        "Authorization": TOKEN
-    };
-}
-
-// LOAD
+// --------- LOAD ---------
 async function loadKeys() {
     let res = await fetch(API + "/get", { headers: auth() });
+
+    if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem("token");
+        alert("Session expired");
+        location.reload();
+        return;
+    }
+
     let data = await res.json();
     output.textContent = JSON.stringify(data, null, 2);
 }
 
-// ADD
+// --------- ACTIONS ---------
 async function addKey() {
-    await fetch(API + "/add", {
+    let res = await fetch(API + "/add", {
         method: "POST",
         headers: auth(),
         body: JSON.stringify({
@@ -50,25 +169,49 @@ async function addKey() {
             notes: notes.value
         })
     });
+
+    if (!res.ok) return alert("failed to add");
+
+    owner.value = key.value = expires.value = notes.value = "";
     loadKeys();
 }
 
-// REVOKE
 async function revokeKey() {
-    await fetch(API + "/revoke", {
+    let res = await fetch(API + "/revoke", {
         method: "POST",
         headers: auth(),
         body: JSON.stringify({ id: manageId.value })
     });
+
+    if (!res.ok) return alert("failed");
+
     loadKeys();
 }
 
-// DELETE
 async function deleteKey() {
-    await fetch(API + "/delete", {
+    let res = await fetch(API + "/delete", {
         method: "POST",
         headers: auth(),
         body: JSON.stringify({ id: manageId.value })
     });
+
+    if (!res.ok) return alert("failed");
+
     loadKeys();
 }
+
+// --------- INITIAL SCREEN ---------
+setTimeout(() => {
+    document.getElementById("status").style.display = "none";
+
+    if (TOKEN) {
+        document.getElementById("panel").style.display = "block";
+        loadKeys();
+    } else {
+        document.getElementById("login").style.display = "block";
+    }
+}, 800);
+</script>
+
+</body>
+</html>
