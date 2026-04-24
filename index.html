@@ -1,39 +1,100 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Key Manager</title>
+<meta charset="UTF-8">
+<title>Key Manager</title>
+
+<style>
+body {
+    background: #0f1117;
+    color: #e6edf3;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 40px;
+}
+
+.container {
+    background: #161b22;
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 500px;
+    margin: auto;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+input, button {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+input {
+    background: #0d1117;
+    color: white;
+}
+
+button {
+    background: #238636;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #2ea043;
+}
+
+pre {
+    text-align: left;
+    background: #0d1117;
+    padding: 10px;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+</style>
 </head>
+
 <body>
 
-<h2>Key Manager</h2>
-
-<div>
-    <h3>Add Key</h3>
-    <input id="owner" placeholder="Owner Name"><br><br>
-    <input id="key" placeholder="Key Value"><br><br>
-    <input id="expires" type="datetime-local"><br><br>
-    <input id="notes" placeholder="Notes"><br><br>
-    <button onclick="addKey()">Add Key</button>
+<div id="errorScreen">
+    <h2>Error: couldn't fetch</h2>
 </div>
 
-<hr>
-
-<div>
-    <h3>Manage Key</h3>
-    <input id="manageId" placeholder="Key ID"><br><br>
-    <button onclick="revokeKey()">Revoke</button>
-    <button onclick="deleteKey()">Delete</button>
+<div id="loginScreen" class="container" style="display:none;">
+    <h2>Login</h2>
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
 </div>
 
-<hr>
+<div id="panel" style="display:none;">
+    <div class="container">
+        <h2>Key Manager</h2>
 
-<h3>Raw Data (for your program)</h3>
-<pre id="output"></pre>
+        <h3>Add Key</h3>
+        <input id="owner" placeholder="Owner">
+        <input id="key" placeholder="Key">
+        <input id="expires" type="datetime-local">
+        <input id="notes" placeholder="Notes">
+        <button onclick="addKey()">Add Key</button>
+
+        <h3>Manage Key</h3>
+        <input id="manageId" placeholder="Key ID">
+        <button onclick="revokeKey()">Revoke</button>
+        <button onclick="deleteKey()">Delete</button>
+
+        <h3>Data</h3>
+        <pre id="output"></pre>
+    </div>
+</div>
 
 <script>
-let db = JSON.parse(localStorage.getItem("keysDB")) || {
-    keys: []
-};
+const USER = "imo";
+const PASS = "tensaiclueless";
+
+let db = JSON.parse(localStorage.getItem("keysDB")) || { keys: [] };
 
 function save() {
     localStorage.setItem("keysDB", JSON.stringify(db));
@@ -44,21 +105,31 @@ function generateId() {
     return "key_" + Math.random().toString(36).substr(2, 9);
 }
 
+function login() {
+    let u = document.getElementById("username").value;
+    let p = document.getElementById("password").value;
+
+    if (u === USER && p === PASS) {
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("panel").style.display = "block";
+        render();
+    } else {
+        alert("Invalid login");
+    }
+}
+
 function addKey() {
     let owner = document.getElementById("owner").value;
     let key = document.getElementById("key").value;
     let expires = document.getElementById("expires").value;
     let notes = document.getElementById("notes").value;
 
-    if (!owner || !key) {
-        alert("Owner and key required");
-        return;
-    }
+    if (!owner || !key) return alert("Missing fields");
 
     db.keys.push({
         id: generateId(),
-        owner: owner,
-        key: key,
+        owner,
+        key,
         created: new Date().toISOString(),
         expires: expires || null,
         revoked: false,
@@ -74,8 +145,6 @@ function revokeKey() {
     if (k) {
         k.revoked = true;
         save();
-    } else {
-        alert("Key not found");
     }
 }
 
@@ -90,7 +159,11 @@ function render() {
         JSON.stringify(db, null, 2);
 }
 
-render();
+// simulate "hidden" page first
+setTimeout(() => {
+    document.getElementById("errorScreen").style.display = "none";
+    document.getElementById("loginScreen").style.display = "block";
+}, 800);
 </script>
 
 </body>
