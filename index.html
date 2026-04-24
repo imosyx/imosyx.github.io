@@ -1,69 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Key Manager</title>
+</head>
+
 <body>
 
-<h2>Key Manager</h2>
+<h2>Login</h2>
 
-<div id="login" class="box">
-    <h3>Login</h3>
+<div id="login">
     <input id="user" placeholder="Username">
     <input id="pass" type="password" placeholder="Password">
     <button onclick="login()">Login</button>
 </div>
 
 <div id="panel" style="display:none;">
-
-<div class="box">
     <h3>Add Key</h3>
-
     <input id="owner" placeholder="Owner">
     <input id="key" placeholder="Key">
-
-    <label>
-        <input type="checkbox" id="useExpire"> Use Expiration
-    </label>
-    <input id="expires" type="datetime-local" disabled>
-
-    <label>
-        <input type="checkbox" id="lockIP"> Lock to IP
-    </label>
-
+    <input id="expires" type="datetime-local">
     <input id="notes" placeholder="Notes">
+    <button onclick="addKey()">Add</button>
 
-    <button onclick="addKey()">Add Key</button>
-</div>
-
-<div class="box">
-    <h3>Manage Key</h3>
-
-    <input id="manageId" placeholder="Click key below or paste ID">
-
+    <h3>Manage</h3>
+    <input id="manageId" placeholder="Key ID">
     <button onclick="revokeKey()">Revoke</button>
-    <button onclick="unrevokeKey()">Unrevoke</button>
     <button onclick="deleteKey()">Delete</button>
-</div>
 
-<div class="box">
-    <h3>Search</h3>
-    <input id="search" placeholder="Search..." oninput="searchKeys()">
-</div>
-
-<div class="box">
-    <h3>Keys</h3>
     <pre id="output"></pre>
 </div>
 
-</div>
-
 <script>
-// -------- API SPLIT --------
-const a="https://hidden",b="-wildflower",c="-4db0";
-const d1="ale",d2="xex",d3="um21";
-const e1="work",e2="ers.dev";
-const API = a+b+c+"."+d1+d2+d3+"."+e1+e2;
+const API = "https://hidden-wildflower-4db0.alexexum21.workers.dev";
+let TOKEN = null;
 
-let TOKEN = localStorage.getItem("token") || null;
-let KEYS = [];
-
-// elements
 const output = document.getElementById("output");
 const owner = document.getElementById("owner");
 const key = document.getElementById("key");
@@ -71,12 +42,29 @@ const expires = document.getElementById("expires");
 const notes = document.getElementById("notes");
 const manageId = document.getElementById("manageId");
 
-// toggles
-document.getElementById("useExpire").onchange = e => {
-    expires.disabled = !e.target.checked;
-};
+// LOGIN
+async function login() {
+    let user = document.getElementById("user").value;
+    let pass = document.getElementById("pass").value;
 
-// auth
+    let res = await fetch(API + "/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ user, pass })
+    });
+
+    if (!res.ok) return alert("login failed");
+
+    let data = await res.json();
+    TOKEN = data.token;
+
+    document.getElementById("login").style.display = "none";
+    document.getElementById("panel").style.display = "block";
+
+    loadKeys();
+}
+
+// AUTH
 function auth() {
     return {
         "Content-Type": "application/json",
@@ -84,85 +72,14 @@ function auth() {
     };
 }
 
-// login
-async function login() {
-    let res = await fetch(API + "/login", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-            user: user.value,
-            pass: pass.value
-        })
-    });
-
-    if (!res.ok) return alert("login failed");
-
-    TOKEN = (await res.json()).token;
-    localStorage.setItem("token", TOKEN);
-
-    login.style.display = "none";
-    panel.style.display = "block";
-
-    loadKeys();
-}
-
-// load
+// LOAD
 async function loadKeys() {
     let res = await fetch(API + "/get", { headers: auth() });
-
-    if (!res.ok) {
-        localStorage.removeItem("token");
-        location.reload();
-        return;
-    }
-
-    KEYS = (await res.json()).keys;
-    render(KEYS);
+    let data = await res.json();
+    output.textContent = JSON.stringify(data, null, 2);
 }
 
-// render
-function render(list) {
-    output.textContent = list.map(k => {
-        let status = "ACTIVE";
-
-        if (k.revoked) status = "REVOKED";
-        else if (k.expires && new Date(k.expires) < new Date())
-            status = "EXPIRED";
-
-        return `
-[${status}]
-ID: ${k.id}
-Owner: ${k.owner}
-Key: ${k.key}
-IP Lock: ${k.ipLock || "none"}
-Expires: ${k.expires || "none"}
-Notes: ${k.notes}
-------------------------`;
-    }).join("\n");
-
-    // click to select
-    setTimeout(() => {
-        output.onclick = e => {
-            let line = e.target.innerText;
-            if (line.startsWith("ID:")) {
-                manageId.value = line.replace("ID: ", "");
-            }
-        };
-    }, 0);
-}
-
-// search
-function searchKeys() {
-    let q = search.value.toLowerCase();
-
-    render(KEYS.filter(k =>
-        k.owner.toLowerCase().includes(q) ||
-        k.key.toLowerCase().includes(q) ||
-        k.id.toLowerCase().includes(q)
-    ));
-}
-
-// add
+// ADD
 async function addKey() {
     await fetch(API + "/add", {
         method: "POST",
@@ -170,18 +87,15 @@ async function addKey() {
         body: JSON.stringify({
             owner: owner.value,
             key: key.value,
-            expires: useExpire.checked ? expires.value : null,
-            ipLock: lockIP.checked,
+            expires: expires.value,
             notes: notes.value
         })
     });
 
-    owner.value = key.value = notes.value = "";
-    expires.value = "";
     loadKeys();
 }
 
-// revoke
+// REVOKE
 async function revokeKey() {
     await fetch(API + "/revoke", {
         method: "POST",
@@ -192,18 +106,7 @@ async function revokeKey() {
     loadKeys();
 }
 
-// unrevoke
-async function unrevokeKey() {
-    await fetch(API + "/unrevoke", {
-        method: "POST",
-        headers: auth(),
-        body: JSON.stringify({ id: manageId.value })
-    });
-
-    loadKeys();
-}
-
-// delete
+// DELETE
 async function deleteKey() {
     await fetch(API + "/delete", {
         method: "POST",
@@ -213,13 +116,7 @@ async function deleteKey() {
 
     loadKeys();
 }
-
-// init
-if (TOKEN) {
-    login.style.display = "none";
-    panel.style.display = "block";
-    loadKeys();
-}
 </script>
 
 </body>
+</html>
