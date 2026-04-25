@@ -680,7 +680,7 @@ textarea.text-input { resize: vertical; min-height: 72px; }
     <p id="confirm-msg">Are you sure?</p>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-red" id="confirm-ok">Confirm</button>
+      <button class="btn btn-red" id="confirm-ok" onclick="handleConfirmOk()">Confirm</button>
     </div>
   </div>
 </div>
@@ -873,7 +873,7 @@ function renderKeys(keys) {
         </div>
 
         <!-- Edit form -->
-        <div id="edit-form-${k.id}" style="display:none">
+        <div id="edit-form-${k.id}" style="display:${isEditing ? 'block' : 'none'}">
           <div style="font-size:12px;color:var(--text3);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Edit Metadata</div>
           <div class="edit-form">
             <div class="edit-form-grid">
@@ -929,6 +929,7 @@ function startEdit(id) {
   editingId = id;
   expandedId = id;
   renderKeys(filterActive());
+  // After render, form is already visible (display:block) because isEditing===true
 }
 
 function cancelEdit(id) { editingId = null; renderKeys(filterActive()); }
@@ -1076,6 +1077,11 @@ function confirmDelete(id) {
   );
 }
 
+async function handleConfirmOk() {
+  closeModal();
+  if (confirmCallback) await confirmCallback();
+}
+
 let confirmCallback = null;
 function showConfirm(title, msg, btnLabel, btnClass, cb) {
   document.getElementById("confirm-title").textContent = title;
@@ -1086,11 +1092,6 @@ function showConfirm(title, msg, btnLabel, btnClass, cb) {
   confirmCallback = cb;
   document.getElementById("confirm-modal").classList.add("open");
 }
-
-document.getElementById("confirm-ok").onclick = async function() {
-  closeModal();
-  if (confirmCallback) await confirmCallback();
-};
 
 function closeModal() {
   document.getElementById("confirm-modal").classList.remove("open");
