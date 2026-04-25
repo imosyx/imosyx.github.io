@@ -1,191 +1,1117 @@
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    const ip = request.headers.get("CF-Connecting-IP");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Key Manager</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    // ✅ Pulled from Workers secrets — never in source code
-    const ADMIN_USER = env.ADMIN_USER;
-    const ADMIN_PASS = env.ADMIN_PASS;
-    const CLIENT_SECRET = env.CLIENT_SECRET;
+:root {
+  --bg: #08090c;
+  --bg2: #0e1017;
+  --bg3: #13161f;
+  --bg4: #1a1e2a;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #e8ecf4;
+  --text2: #8892a4;
+  --text3: #505870;
+  --accent: #6c8fff;
+  --accent-glow: rgba(108,143,255,0.18);
+  --accent-dim: rgba(108,143,255,0.1);
+  --green: #3ecf8e;
+  --green-dim: rgba(62,207,142,0.12);
+  --red: #f5636a;
+  --red-dim: rgba(245,99,106,0.12);
+  --amber: #f5a623;
+  --amber-dim: rgba(245,166,35,0.12);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+  --cyan: #38bdf8;
+  --cyan-dim: rgba(56,189,248,0.1);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+}
 
-    const cors = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
-    };
+html, body { height: 100%; }
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: cors });
-    }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
 
-    // Rate limit helper — simple per-IP counter in KV
-    async function checkRateLimit(key, max, windowSecs) {
-      const now = Math.floor(Date.now() / 1000);
-      const bucket = Math.floor(now / windowSecs);
-      const kvKey = `rl_${key}_${bucket}`;
-      const raw = await env.DB.get(kvKey);
-      const count = raw ? parseInt(raw) : 0;
-      if (count >= max) return false;
-      await env.DB.put(kvKey, String(count + 1), { expirationTtl: windowSecs * 2 });
-      return true;
-    }
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
 
-    // LOGIN — rate limited to 10 attempts per IP per 5 minutes
-    if (url.pathname === "/login" && request.method === "POST") {
-      const allowed = await checkRateLimit(`login_${ip}`, 10, 300);
-      if (!allowed) {
-        return new Response("Too many attempts", { status: 429, headers: cors });
-      }
+/* ── LOGIN ── */
+#login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(108,143,255,0.08) 0%, transparent 70%);
+}
 
-      const body = await request.json();
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 40px 36px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 40px 80px rgba(0,0,0,0.6);
+}
 
-      if (body.user === ADMIN_USER && body.pass === ADMIN_PASS) {
-        const token = crypto.randomUUID();
-        await env.DB.put("session_" + token, JSON.stringify({ ip }), {
-          expirationTtl: 60 * 60 * 8 // sessions expire after 8 hours automatically
-        });
-        return new Response(JSON.stringify({ token }), {
-          headers: { ...cors, "Content-Type": "application/json" }
-        });
-      }
+.login-logo {
+  width: 48px; height: 48px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(108,143,255,0.3);
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 24px;
+}
 
-      return new Response("Invalid login", { status: 401, headers: cors });
-    }
+.login-logo svg { width: 22px; height: 22px; }
 
-    // CLIENT VALIDATE — rate limited to 60 per IP per minute
-    if (url.pathname === "/validate" && request.method === "POST") {
-      const secret = request.headers.get("x-client-secret");
-      if (!secret || secret !== CLIENT_SECRET) {
-        return new Response("Forbidden", { status: 403, headers: cors });
-      }
+.login-card h1 {
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 6px;
+  color: var(--text);
+}
 
-      const allowed = await checkRateLimit(`validate_${ip}`, 60, 60);
-      if (!allowed) {
-        return new Response("Too many requests", { status: 429, headers: cors });
-      }
+.login-card p {
+  text-align: center;
+  color: var(--text3);
+  font-size: 13px;
+  margin-bottom: 32px;
+}
 
-      let data = JSON.parse(await env.DB.get("keys") || '{"keys":[]}');
-      const body = await request.json();
-      let k = data.keys.find(x => x.key === body.key);
+.field { margin-bottom: 14px; }
 
-      if (!k) return new Response(JSON.stringify({ valid: false }), { headers: cors });
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 
-      if (k.revoked || k.disabled || (k.expires && new Date(k.expires) < new Date())) {
-        return new Response(JSON.stringify({ valid: false }), { headers: cors });
-      }
+input[type="text"], input[type="password"], input[type="datetime-local"], input.text-input, textarea.text-input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 14px;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
 
-      return new Response(JSON.stringify({ valid: true, owner: k.owner, tags: k.tags || [] }), {
-        headers: { ...cors, "Content-Type": "application/json" }
-      });
-    }
+input[type="text"]:focus, input[type="password"]:focus, input[type="datetime-local"]:focus, input.text-input:focus, textarea.text-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
 
-    // AUTH — all routes below require a valid session
-    const token = request.headers.get("Authorization");
-    if (!token) return new Response("Unauthorized", { status: 401, headers: cors });
+input::placeholder, textarea::placeholder { color: var(--text3); }
 
-    let sessionRaw = await env.DB.get("session_" + token);
-    if (!sessionRaw) return new Response("Unauthorized", { status: 401, headers: cors });
+textarea.text-input { resize: vertical; min-height: 72px; }
 
-    let session = JSON.parse(sessionRaw);
-    if (session.ip !== ip) {
-      return new Response("IP mismatch", { status: 403, headers: cors });
-    }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 9px 16px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
 
-    // ✅ Refresh session TTL on every authenticated request (sliding expiry)
-    await env.DB.put("session_" + token, sessionRaw, { expirationTtl: 60 * 60 * 8 });
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  width: 100%;
+  padding: 11px;
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+.btn-primary:hover { background: #7d9fff; box-shadow: 0 0 30px rgba(108,143,255,0.3); }
 
-    let data = JSON.parse(await env.DB.get("keys") || '{"keys":[]}');
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+}
 
-    // Auto-expire
-    data.keys.forEach(k => {
-      if (k.expires && new Date(k.expires) < new Date()) {
-        k.revoked = true;
-      }
+.btn-ghost { background: var(--bg4); color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+
+.btn-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(62,207,142,0.2); }
+.btn-green:hover { background: rgba(62,207,142,0.2); }
+
+.btn-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(245,99,106,0.2); }
+.btn-red:hover { background: rgba(245,99,106,0.22); }
+
+.btn-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,166,35,0.2); }
+.btn-amber:hover { background: rgba(245,166,35,0.22); }
+
+.btn-purple { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(167,139,250,0.2); }
+.btn-purple:hover { background: rgba(167,139,250,0.22); }
+
+.btn-cyan { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(56,189,248,0.2); }
+.btn-cyan:hover { background: rgba(56,189,248,0.2); }
+
+/* ── APP LAYOUT ── */
+#app { display: none; height: 100vh; flex-direction: column; }
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 60px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+
+.logo-mark {
+  width: 32px; height: 32px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(108,143,255,0.3);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.logo-mark svg { width: 16px; height: 16px; }
+
+.topbar h1 { font-size: 15px; font-weight: 600; color: var(--text); }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+/* Stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.stat-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-icon {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+}
+
+.stat-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 20px; font-weight: 600; color: var(--text); line-height: 1.2; }
+
+/* Main area */
+.main-area {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--bg);
+}
+
+.panel-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-header h2 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.panel-header-icon {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+}
+
+.panel-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Key list / content */
+.content-area {
+  overflow-y: auto;
+  padding: 20px;
+  background: var(--bg);
+}
+
+.content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.content-header h2 { font-size: 15px; font-weight: 600; color: var(--text); }
+
+.search-wrap {
+  position: relative;
+}
+
+.search-wrap svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px; height: 14px;
+  color: var(--text3);
+}
+
+.search-input {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  padding-left: 32px !important;
+  width: 200px;
+}
+
+/* Key rows */
+.keys-list { display: flex; flex-direction: column; gap: 8px; }
+
+.key-row {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.key-row:hover { border-color: var(--border2); }
+.key-row.editing { border-color: rgba(108,143,255,0.4); box-shadow: 0 0 0 3px var(--accent-dim); }
+
+.key-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 14px 16px;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.key-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.key-owner-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.key-owner { font-size: 13.5px; font-weight: 600; color: var(--text); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-active { background: var(--green-dim); color: var(--green); border: 1px solid rgba(62,207,142,0.2); }
+.badge-revoked { background: var(--red-dim); color: var(--red); border: 1px solid rgba(245,99,106,0.2); }
+.badge-disabled { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,166,35,0.2); }
+.badge-expired { background: rgba(100,100,120,0.15); color: var(--text3); border: 1px solid var(--border); }
+
+.key-value {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
+}
+
+.key-info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--text3);
+}
+
+.key-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+/* Key expanded */
+.key-expanded {
+  border-top: 1px solid var(--border);
+  padding: 16px;
+  display: none;
+}
+
+.key-expanded.open { display: block; }
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.edit-form { display: flex; flex-direction: column; gap: 10px; }
+.edit-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.rotate-form { display: flex; gap: 8px; margin-top: 10px; }
+.rotate-form input { flex: 1; }
+
+/* Modal overlay */
+.modal-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal-bg.open { display: flex; }
+
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 18px;
+  padding: 32px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 40px 80px rgba(0,0,0,0.7);
+}
+
+.modal h2 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.modal p { color: var(--text2); font-size: 13.5px; margin-bottom: 24px; }
+.modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* Empty state */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  color: var(--text3);
+  gap: 10px;
+}
+
+.empty-icon {
+  width: 48px; height: 48px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 8px;
+}
+
+.empty p { font-size: 13px; }
+
+/* Tag chips */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--bg4);
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+
+/* Divider */
+.divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Glow line accent */
+.glow-accent {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.4;
+}
+
+/* Flash animation */
+@keyframes flash-green { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 0 3px var(--green-dim)} }
+.flash-success { animation: flash-green 0.5s ease; }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .main-area { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 420px; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .stats-row { display: none; }
+  .topbar { padding: 0 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#6c8fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <h1>Key Manager</h1>
+    <p>Sign in to manage your API keys</p>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="user" placeholder="Enter username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="pass" placeholder="Enter password" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <button class="btn btn-primary" style="margin-top:8px" onclick="login()">Sign in</button>
+    <div id="login-err" style="display:none;margin-top:12px;padding:10px 14px;background:var(--red-dim);border:1px solid rgba(245,99,106,0.3);border-radius:var(--radius-sm);color:var(--red);font-size:13px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#6c8fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <h1>Key Manager</h1>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost btn-sm" onclick="loadKeys()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Logout
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--accent-dim)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c8fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      </div>
+      <div>
+        <div class="stat-label">Total Keys</div>
+        <div class="stat-value" id="stat-total">—</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--green-dim)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3ecf8e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <div class="stat-label">Active</div>
+        <div class="stat-value" id="stat-active">—</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--amber-dim)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div>
+        <div class="stat-label">Disabled</div>
+        <div class="stat-value" id="stat-disabled">—</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--red-dim)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f5636a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      </div>
+      <div>
+        <div class="stat-label">Revoked</div>
+        <div class="stat-value" id="stat-revoked">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-area">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <!-- Add Key -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-header-icon" style="background:var(--green-dim)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3ecf8e" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </div>
+          <h2>Add New Key</h2>
+        </div>
+        <div class="panel-body">
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">Owner</label>
+            <input type="text" id="add-owner" placeholder="e.g. Acme Corp" class="text-input">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">API Key</label>
+            <div style="display:flex;gap:6px">
+              <input type="text" id="add-key" placeholder="sk-..." class="text-input" style="flex:1;font-family:monospace">
+              <button class="btn btn-ghost btn-sm" onclick="generateKey()" title="Generate random key" style="flex-shrink:0">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">Expires (optional)</label>
+            <input type="datetime-local" id="add-expires" class="text-input">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">Tags (comma-separated)</label>
+            <input type="text" id="add-tags" placeholder="prod, api, v2" class="text-input">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">Notes</label>
+            <textarea id="add-notes" placeholder="Optional notes..." class="text-input"></textarea>
+          </div>
+          <button class="btn btn-green" style="width:100%;justify-content:center" onclick="addKey()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Key
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content-area">
+      <div class="content-header">
+        <h2>API Keys</h2>
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="search" placeholder="Search keys…" class="text-input search-input" oninput="filterKeys()">
+        </div>
+      </div>
+      <div id="keys-list" class="keys-list">
+        <div class="empty">
+          <div class="empty-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          </div>
+          <p>Loading keys…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-bg" id="confirm-modal">
+  <div class="modal">
+    <h2 id="confirm-title">Confirm</h2>
+    <p id="confirm-msg">Are you sure?</p>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-red" id="confirm-ok" onclick="handleConfirmOk()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const d1="ale",d3="um21",a="https://hidden",b="-wildflower",c="-4db0",d2="xex",e1="work",e2="ers.dev";
+const API = a+b+c+"."+d1+d2+d3+"."+e1+e2;
+
+let TOKEN = localStorage.getItem("token") || null;
+let allKeys = [];
+let expandedId = null;
+let editingId = null;
+
+function auth() {
+  return { "Content-Type": "application/json", "Authorization": TOKEN };
+}
+
+function generateKey() {
+  const arr = new Uint8Array(24);
+  crypto.getRandomValues(arr);
+  const key = "sk-" + Array.from(arr).map(b => b.toString(16).padStart(2,"0")).join("").slice(0, 36);
+  document.getElementById("add-key").value = key;
+}
+
+async function login() {
+  const user = document.getElementById("user").value;
+  const pass = document.getElementById("pass").value;
+  const errEl = document.getElementById("login-err");
+  errEl.style.display = "none";
+  try {
+    const res = await fetch(API + "/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user, pass })
     });
-
-    // GET
-    if (url.pathname === "/get") {
-      return new Response(JSON.stringify(data), {
-        headers: { ...cors, "Content-Type": "application/json" }
-      });
-    }
-
-    // ADD
-    if (url.pathname === "/add" && request.method === "POST") {
-      const body = await request.json();
-      if (!body.key) return new Response("Key is required", { status: 400, headers: cors });
-      data.keys.push({
-        id: crypto.randomUUID(),
-        owner: body.owner || "",
-        key: body.key,
-        created: new Date().toISOString(),
-        expires: body.expires || null,
-        revoked: false,
-        disabled: false,
-        tags: Array.isArray(body.tags) ? body.tags : [],
-        notes: body.notes || ""
-      });
-      await env.DB.put("keys", JSON.stringify(data));
-      return new Response("OK", { headers: cors });
-    }
-
-    // REVOKE
-    if (url.pathname === "/revoke" && request.method === "POST") {
-      const body = await request.json();
-      let k = data.keys.find(x => x.id === body.id);
-      if (!k) return new Response("Not found", { status: 404, headers: cors });
-      k.revoked = true;
-      k.revokedAt = new Date().toISOString();
-      await env.DB.put("keys", JSON.stringify(data));
-      return new Response("OK", { headers: cors });
-    }
-
-    // DELETE
-    if (url.pathname === "/delete" && request.method === "POST") {
-      const body = await request.json();
-      data.keys = data.keys.filter(x => x.id !== body.id);
-      await env.DB.put("keys", JSON.stringify(data));
-      return new Response("OK", { headers: cors });
-    }
-
-    // TOGGLE
-    if (url.pathname === "/toggle" && request.method === "POST") {
-      const body = await request.json();
-      let k = data.keys.find(x => x.id === body.id);
-      if (!k) return new Response("Not found", { status: 404, headers: cors });
-      k.disabled = !k.disabled;
-      k.disabledAt = k.disabled ? new Date().toISOString() : null;
-      await env.DB.put("keys", JSON.stringify(data));
-      return new Response("OK", { headers: cors });
-    }
-
-    // ROTATE
-    if (url.pathname === "/rotate" && request.method === "POST") {
-      const body = await request.json();
-      if (!body.newKey) return new Response("newKey is required", { status: 400, headers: cors });
-      let k = data.keys.find(x => x.id === body.id);
-      if (!k) return new Response("Not found", { status: 404, headers: cors });
-      k.previousKey = k.key;
-      k.key = body.newKey;
-      k.rotatedAt = new Date().toISOString();
-      await env.DB.put("keys", JSON.stringify(data));
-      return new Response("OK", { headers: cors });
-    }
-
-    // UPDATE
-    if (url.pathname === "/update" && request.method === "POST") {
-      const body = await request.json();
-      let k = data.keys.find(x => x.id === body.id);
-      if (!k) return new Response("Not found", { status: 404, headers: cors });
-      if (body.owner !== undefined) k.owner = body.owner;
-      if (body.notes !== undefined) k.notes = body.notes;
-      if (body.tags !== undefined) k.tags = Array.isArray(body.tags) ? body.tags : [];
-      if (body.expires !== undefined) k.expires = body.expires || null;
-      k.updatedAt = new Date().toISOString();
-      await env.DB.put("keys", JSON.stringify(data));
-      return new Response("OK", { headers: cors });
-    }
-
-    return new Response("Not found", { status: 404, headers: cors });
+    if (!res.ok) { errEl.textContent = "Invalid username or password."; errEl.style.display = "block"; return; }
+    const data = await res.json();
+    TOKEN = data.token;
+    localStorage.setItem("token", TOKEN);
+    showApp();
+  } catch(e) {
+    errEl.textContent = "Connection error. Check your network.";
+    errEl.style.display = "block";
   }
-};
+}
+
+function logout() {
+  localStorage.removeItem("token");
+  TOKEN = null;
+  document.getElementById("app").style.display = "none";
+  document.getElementById("login-wrap").style.display = "flex";
+}
+
+function showApp() {
+  document.getElementById("login-wrap").style.display = "none";
+  document.getElementById("app").style.display = "flex";
+  loadKeys();
+}
+
+async function loadKeys() {
+  try {
+    const res = await fetch(API + "/get", { headers: auth() });
+    if (res.status === 401 || res.status === 403) { logout(); return; }
+    const data = await res.json();
+    allKeys = data.keys || [];
+    renderStats();
+    renderKeys(allKeys);
+  } catch(e) {
+    renderError();
+  }
+}
+
+function renderStats() {
+  const total = allKeys.length;
+  const active = allKeys.filter(k => !k.revoked && !k.disabled && !(k.expires && new Date(k.expires) < new Date())).length;
+  const disabled = allKeys.filter(k => k.disabled && !k.revoked).length;
+  const revoked = allKeys.filter(k => k.revoked).length;
+  document.getElementById("stat-total").textContent = total;
+  document.getElementById("stat-active").textContent = active;
+  document.getElementById("stat-disabled").textContent = disabled;
+  document.getElementById("stat-revoked").textContent = revoked;
+}
+
+function keyStatus(k) {
+  if (k.revoked) return "revoked";
+  if (k.expires && new Date(k.expires) < new Date()) return "expired";
+  if (k.disabled) return "disabled";
+  return "active";
+}
+
+function badgeHtml(status) {
+  const icons = {
+    active: `<svg width="8" height="8" viewBox="0 0 8 8" fill="#3ecf8e"><circle cx="4" cy="4" r="3"/></svg>`,
+    revoked: `<svg width="8" height="8" viewBox="0 0 8 8" fill="#f5636a"><circle cx="4" cy="4" r="3"/></svg>`,
+    disabled: `<svg width="8" height="8" viewBox="0 0 8 8" fill="#f5a623"><circle cx="4" cy="4" r="3"/></svg>`,
+    expired: `<svg width="8" height="8" viewBox="0 0 8 8" fill="#505870"><circle cx="4" cy="4" r="3"/></svg>`,
+  };
+  const labels = { active:"Active", revoked:"Revoked", disabled:"Disabled", expired:"Expired" };
+  return `<span class="badge badge-${status}">${icons[status]}${labels[status]}</span>`;
+}
+
+function fmtDate(str) {
+  if (!str) return null;
+  const d = new Date(str);
+  return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+}
+
+function maskKey(k) {
+  if (!k || k.length < 8) return k;
+  return k.slice(0, 7) + "••••••••••••" + k.slice(-4);
+}
+
+function renderKeys(keys) {
+  const list = document.getElementById("keys-list");
+  if (!keys.length) {
+    list.innerHTML = `<div class="empty">
+      <div class="empty-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div>
+      <p>No keys found. Add one to get started.</p>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = keys.map(k => {
+    const status = keyStatus(k);
+    const isExpanded = expandedId === k.id;
+    const isEditing = editingId === k.id;
+    const tags = (k.tags || []);
+    const tagHtml = tags.map(t => `<span class="tag-chip">${t}</span>`).join("");
+    const created = fmtDate(k.created);
+    const expires = k.expires ? fmtDate(k.expires) : null;
+
+    return `<div class="key-row${isEditing ? " editing" : ""}" id="row-${k.id}">
+      <div class="key-header" onclick="toggleExpand('${k.id}')">
+        <div class="key-meta">
+          <div class="key-owner-row">
+            <span class="key-owner">${esc(k.owner || "Unnamed")}</span>
+            ${badgeHtml(status)}
+            ${tagHtml}
+          </div>
+          <div class="key-value">${maskKey(k.key)}</div>
+          <div class="key-info-row">
+            ${created ? `<span>Created ${created}</span>` : ""}
+            ${expires ? `<span style="color:${status==='expired'?'var(--red)':'var(--text3)'}">Expires ${expires}</span>` : ""}
+            ${k.rotatedAt ? `<span style="color:var(--purple)">Rotated ${fmtDate(k.rotatedAt)}</span>` : ""}
+          </div>
+        </div>
+        <div class="key-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost btn-sm" onclick="copyKey('${k.id}')" title="Copy key">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s;transform:rotate(${isExpanded?'180':'0'}deg)" id="chevron-${k.id}"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+      <div class="key-expanded${isExpanded ? " open" : ""}">
+        ${k.notes ? `<p style="font-size:13px;color:var(--text2);margin-bottom:14px;padding:10px 12px;background:var(--bg3);border-radius:var(--radius-sm);border:1px solid var(--border)">${esc(k.notes)}</p>` : ""}
+
+        <div class="action-row">
+          ${status !== "revoked" ? `
+            <button class="btn btn-amber btn-sm" onclick="toggleDisable('${k.id}')">
+              ${k.disabled
+                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Enable`
+                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg> Disable`}
+            </button>
+            <button class="btn btn-red btn-sm" onclick="confirmRevoke('${k.id}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Revoke
+            </button>
+          ` : ""}
+          <button class="btn btn-purple btn-sm" onclick="startRotate('${k.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Rotate
+          </button>
+          <button class="btn btn-cyan btn-sm" onclick="startEdit('${k.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit
+          </button>
+          <button class="btn btn-red btn-sm" onclick="confirmDelete('${k.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Delete
+          </button>
+        </div>
+
+        <!-- Rotate form -->
+        <div id="rotate-form-${k.id}" style="display:none;margin-bottom:14px">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">New Key Value</div>
+          <div class="rotate-form">
+            <input type="text" id="rotate-input-${k.id}" placeholder="Enter new key value…" class="text-input" style="font-family:monospace">
+            <button class="btn btn-ghost btn-sm" onclick="autoRotate('${k.id}')" title="Generate">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
+            <button class="btn btn-purple btn-sm" onclick="rotateKey('${k.id}')">Rotate</button>
+            <button class="btn btn-ghost btn-sm" onclick="cancelRotate('${k.id}')">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Edit form -->
+        <div id="edit-form-${k.id}" style="display:${isEditing ? 'block' : 'none'}">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Edit Metadata</div>
+          <div class="edit-form">
+            <div class="edit-form-grid">
+              <div>
+                <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">Owner</label>
+                <input type="text" id="edit-owner-${k.id}" value="${esc(k.owner||"")}" class="text-input">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">Tags</label>
+                <input type="text" id="edit-tags-${k.id}" value="${esc((k.tags||[]).join(", "))}" placeholder="prod, api, v2" class="text-input">
+              </div>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">Expires</label>
+              <input type="datetime-local" id="edit-expires-${k.id}" class="text-input" value="${k.expires ? k.expires.slice(0,16) : ""}">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px">Notes</label>
+              <textarea id="edit-notes-${k.id}" class="text-input">${esc(k.notes||"")}</textarea>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-cyan btn-sm" onclick="saveEdit('${k.id}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Save
+              </button>
+              <button class="btn btn-ghost btn-sm" onclick="cancelEdit('${k.id}')">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function filterKeys() {
+  const q = document.getElementById("search").value.toLowerCase();
+  if (!q) { renderKeys(allKeys); return; }
+  const filtered = allKeys.filter(k =>
+    (k.owner||"").toLowerCase().includes(q) ||
+    (k.key||"").toLowerCase().includes(q) ||
+    (k.notes||"").toLowerCase().includes(q) ||
+    (k.tags||[]).some(t => t.toLowerCase().includes(q))
+  );
+  renderKeys(filtered);
+}
+
+function toggleExpand(id) {
+  expandedId = expandedId === id ? null : id;
+  editingId = null;
+  renderKeys(filterActive());
+}
+
+function startEdit(id) {
+  editingId = id;
+  expandedId = id;
+  renderKeys(filterActive());
+  // After render, form is already visible (display:block) because isEditing===true
+}
+
+function cancelEdit(id) { editingId = null; renderKeys(filterActive()); }
+function startRotate(id) {
+  const el = document.getElementById(`rotate-form-${id}`);
+  if (el) el.style.display = el.style.display === "none" ? "block" : "none";
+}
+function cancelRotate(id) {
+  const el = document.getElementById(`rotate-form-${id}`);
+  if (el) el.style.display = "none";
+}
+function autoRotate(id) {
+  const arr = new Uint8Array(24);
+  crypto.getRandomValues(arr);
+  const key = "sk-" + Array.from(arr).map(b => b.toString(16).padStart(2,"0")).join("").slice(0, 36);
+  document.getElementById(`rotate-input-${id}`).value = key;
+}
+
+function filterActive() {
+  const q = document.getElementById("search").value.toLowerCase();
+  if (!q) return allKeys;
+  return allKeys.filter(k =>
+    (k.owner||"").toLowerCase().includes(q) ||
+    (k.key||"").toLowerCase().includes(q) ||
+    (k.notes||"").toLowerCase().includes(q) ||
+    (k.tags||[]).some(t => t.toLowerCase().includes(q))
+  );
+}
+
+function copyKey(id) {
+  const k = allKeys.find(x => x.id === id);
+  if (k && k.key) {
+    navigator.clipboard.writeText(k.key).then(() => {
+      const row = document.getElementById(`row-${id}`);
+      if (row) row.classList.add("flash-success");
+      setTimeout(() => row && row.classList.remove("flash-success"), 600);
+    });
+  }
+}
+
+function renderError() {
+  document.getElementById("keys-list").innerHTML = `<div class="empty"><p style="color:var(--red)">Failed to load keys. Check your connection.</p></div>`;
+}
+
+async function addKey() {
+  const owner = document.getElementById("add-owner").value.trim();
+  const key = document.getElementById("add-key").value.trim();
+  const expires = document.getElementById("add-expires").value;
+  const notes = document.getElementById("add-notes").value.trim();
+  const tagsRaw = document.getElementById("add-tags").value;
+  const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+
+  if (!key) { alert("Key is required."); return; }
+
+  const res = await fetch(API + "/add", {
+    method: "POST",
+    headers: auth(),
+    body: JSON.stringify({ owner, key, expires: expires || null, notes, tags })
+  });
+
+  if (!res.ok) { alert("Failed to add key."); return; }
+
+  document.getElementById("add-owner").value = "";
+  document.getElementById("add-key").value = "";
+  document.getElementById("add-expires").value = "";
+  document.getElementById("add-notes").value = "";
+  document.getElementById("add-tags").value = "";
+  loadKeys();
+}
+
+async function toggleDisable(id) {
+  const res = await fetch(API + "/toggle", {
+    method: "POST",
+    headers: auth(),
+    body: JSON.stringify({ id })
+  });
+  if (!res.ok) { alert("Failed."); return; }
+  loadKeys();
+}
+
+async function rotateKey(id) {
+  const newKey = document.getElementById(`rotate-input-${id}`).value.trim();
+  if (!newKey) { alert("Enter a new key value."); return; }
+  const res = await fetch(API + "/rotate", {
+    method: "POST",
+    headers: auth(),
+    body: JSON.stringify({ id, newKey })
+  });
+  if (!res.ok) { alert("Failed."); return; }
+  loadKeys();
+}
+
+async function saveEdit(id) {
+  const owner = document.getElementById(`edit-owner-${id}`).value.trim();
+  const notes = document.getElementById(`edit-notes-${id}`).value.trim();
+  const expires = document.getElementById(`edit-expires-${id}`).value;
+  const tagsRaw = document.getElementById(`edit-tags-${id}`).value;
+  const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+
+  const res = await fetch(API + "/update", {
+    method: "POST",
+    headers: auth(),
+    body: JSON.stringify({ id, owner, notes, tags, expires: expires || null })
+  });
+  if (!res.ok) { alert("Failed."); return; }
+  editingId = null;
+  loadKeys();
+}
+
+function confirmRevoke(id) {
+  const k = allKeys.find(x => x.id === id);
+  showConfirm(
+    "Revoke key?",
+    `This will permanently revoke the key for "${k?.owner || "unknown"}". It cannot be un-revoked.`,
+    "Revoke",
+    "btn-red",
+    async () => {
+      const res = await fetch(API + "/revoke", {
+        method: "POST",
+        headers: auth(),
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) alert("Failed.");
+      else loadKeys();
+    }
+  );
+}
+
+function confirmDelete(id) {
+  const k = allKeys.find(x => x.id === id);
+  showConfirm(
+    "Delete key?",
+    `This will permanently delete the key for "${k?.owner || "unknown"}". This action cannot be undone.`,
+    "Delete",
+    "btn-red",
+    async () => {
+      const res = await fetch(API + "/delete", {
+        method: "POST",
+        headers: auth(),
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) alert("Failed.");
+      else loadKeys();
+    }
+  );
+}
+
+async function handleConfirmOk() {
+  closeModal();
+  if (confirmCallback) await confirmCallback();
+}
+
+let confirmCallback = null;
+function showConfirm(title, msg, btnLabel, btnClass, cb) {
+  document.getElementById("confirm-title").textContent = title;
+  document.getElementById("confirm-msg").textContent = msg;
+  const okBtn = document.getElementById("confirm-ok");
+  okBtn.textContent = btnLabel;
+  okBtn.className = "btn " + btnClass;
+  confirmCallback = cb;
+  document.getElementById("confirm-modal").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("confirm-modal").classList.remove("open");
+  confirmCallback = null;
+}
+
+document.getElementById("confirm-modal").addEventListener("click", function(e) {
+  if (e.target === this) closeModal();
+});
+
+function esc(str) {
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// init
+if (TOKEN) {
+  showApp();
+} else {
+  document.getElementById("login-wrap").style.display = "flex";
+}
+</script>
+</body>
+</html>
