@@ -1078,8 +1078,9 @@ function confirmDelete(id) {
 }
 
 async function handleConfirmOk() {
+  const cb = confirmCallback;
   closeModal();
-  if (confirmCallback) await confirmCallback();
+  if (cb) await cb();
 }
 
 let confirmCallback = null;
