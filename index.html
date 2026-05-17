@@ -812,20 +812,32 @@ function renderKeys(keys) {
     const created = fmtDate(k.created);
     const expires = k.expires ? fmtDate(k.expires) : null;
 
-    return `<div class="key-row${isEditing ? " editing" : ""}" id="row-${k.id}">
+   return `<div class="key-row${isEditing ? " editing" : ""}" id="row-${k.id}">
       <div class="key-header" onclick="toggleExpand('${k.id}')">
         <div class="key-meta">
           <div class="key-owner-row">
             <span class="key-owner">${esc(k.owner || "Unnamed")}</span>
             ${badgeHtml(status)}
             ${tagHtml}
-<div style="margin-top:5px;display:flex;align-items:flex-start;gap:6px">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" style="margin-top:2px;flex-shrink:0"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-    <div style="display:flex;flex-direction:column;gap:1px">
-      ${k.usedBy.map(u => `<span style="font-size:11.5px;color:var(--text2)">${esc(u)}</span>`).join("")}
-    </div>
-  </div>
-` : ""}
+
+            ${k.usedBy && k.usedBy.length ? `
+            <div style="margin-top:5px;display:flex;align-items:flex-start;gap:6px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" style="margin-top:2px;flex-shrink:0">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+
+              <div style="display:flex;flex-direction:column;gap:1px">
+                ${k.usedBy.map(u => `
+                  <span style="font-size:11.5px;color:var(--text2)">
+                    ${esc(u)}
+                  </span>
+                `).join("")}
+              </div>
+            </div>
+            ` : ""}
+          </div>
+
           <div class="key-info-row">
             ${created ? `<span>Created ${created}</span>` : ""}
             ${expires ? `<span style="color:${status==='expired'?'var(--red)':'var(--text3)'}">Expires ${expires}</span>` : ""}
