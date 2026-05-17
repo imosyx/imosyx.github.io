@@ -820,7 +820,12 @@ function renderKeys(keys) {
             ${badgeHtml(status)}
             ${tagHtml}
           </div>
-          <div class="key-value">${maskKey(k.key)}</div>
+<div class="key-value">${maskKey(k.key)}</div>
+${(k.usedBy && k.usedBy.length > 0) ? `
+  <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+    ${k.usedBy.map(u => `<span class="tag-chip" style="color:var(--cyan);border-color:rgba(56,189,248,0.2)">👤 ${esc(u)}</span>`).join("")}
+  </div>
+` : ""}
           <div class="key-info-row">
             ${created ? `<span>Created ${created}</span>` : ""}
             ${expires ? `<span style="color:${status==='expired'?'var(--red)':'var(--text3)'}">Expires ${expires}</span>` : ""}
