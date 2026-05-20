@@ -227,10 +227,32 @@ textarea.text-input { resize: vertical; min-height: 72px; }
   border: 1px solid var(--border);
   background: var(--bg3);
   gap: 0;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, padding 0.2s ease;
   user-select: none;
+  position: relative;
+  overflow: hidden;
 }
 .avatar-stack:hover { border-color: var(--border2); background: var(--bg4); }
+
+/* Inline name preview on hover */
+.avatar-name-preview {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  transition: max-width 0.25s ease, opacity 0.2s ease, margin 0.2s ease;
+  margin-left: 0;
+  line-height: 22px;
+}
+.avatar-stack:hover .avatar-name-preview {
+  max-width: 200px;
+  opacity: 1;
+  margin-left: 6px;
+  margin-right: 2px;
+}
 
 .avatar {
   width: 22px; height: 22px; border-radius: 50%;
@@ -720,8 +742,9 @@ function usedByHtml(usedBy, keyId) {
   const shown = usedBy.slice(0, MAX_SHOWN);
   const extra = usedBy.length - MAX_SHOWN;
 
+  // Build avatars with inline name preview on hover
   const avatarsHtml = shown.map((u, i) =>
-    `<div class="avatar" style="${avatarStyle(i)}" data-name="${esc(u)}" title="${esc(u)}">${initials(u)}</div>`
+    `<div class="avatar" style="${avatarStyle(i)}" data-name="${esc(u)}" title="${esc(u)}">${initials(u)}</div><span class="avatar-name-preview">${esc(u)}</span>`
   ).join("");
 
   const countHtml = extra > 0
