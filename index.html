@@ -246,6 +246,35 @@ textarea.text-input { resize: vertical; min-height: 72px; }
 .avatar:first-child { margin-left: 0; }
 
 /* Avatar colors cycling */
+/* Avatar tooltip on hover */
+.avatar {
+  position: relative;
+}
+.avatar::after {
+  content: attr(data-name);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  z-index: 300;
+}
+.avatar:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 .avatar:nth-child(1) { background: rgba(108,143,255,0.25); color: #6c8fff; border-color: var(--bg3); }
 .avatar:nth-child(2) { background: rgba(62,207,142,0.2); color: #3ecf8e; border-color: var(--bg3); }
 .avatar:nth-child(3) { background: rgba(167,139,250,0.2); color: #a78bfa; border-color: var(--bg3); }
@@ -259,43 +288,95 @@ textarea.text-input { resize: vertical; min-height: 72px; }
 .players-popover {
   display: none;
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   left: 0;
   z-index: 200;
   background: var(--bg2);
   border: 1px solid var(--border2);
   border-radius: var(--radius);
-  padding: 8px;
-  min-width: 180px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  padding: 10px;
+  min-width: 220px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.96);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
 }
-.players-popover.open { display: flex; }
+.players-popover.open {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+/* Arrow pointer */
+.players-popover::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 18px;
+  width: 10px;
+  height: 10px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border2);
+  border-top: 1px solid var(--border2);
+  transform: rotate(45deg);
+  z-index: -1;
+}
 
 .popover-header {
-  font-size: 10px; font-weight: 600; color: var(--text3);
-  text-transform: uppercase; letter-spacing: 0.07em;
-  padding: 4px 8px 6px;
+  font-size: 10px; font-weight: 700; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 6px 10px 8px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.popover-header::after {
+  content: attr(data-count);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  background: var(--bg3);
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
 }
 
 .player-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 8px; border-radius: 6px;
-  transition: background 0.1s;
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 8px;
+  transition: background 0.15s ease, transform 0.15s ease;
+  cursor: default;
 }
-.player-row:hover { background: var(--bg3); }
+.player-row:hover {
+  background: var(--bg3);
+  transform: translateX(2px);
+}
 
 .player-avatar {
-  width: 26px; height: 26px; border-radius: 50%;
+  width: 30px; height: 30px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   flex-shrink: 0; text-transform: uppercase;
+  border: 2px solid var(--bg3);
 }
 
-.player-name { font-size: 12.5px; color: var(--text); font-weight: 500; }
+.player-name {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.player-name-secondary {
+  font-size: 11px;
+  color: var(--text3);
+  font-weight: 400;
+  margin-top: 1px;
+}
 
 /* Key expanded */
 .key-expanded { border-top: 1px solid var(--border); padding: 16px; display: none; }
@@ -337,6 +418,7 @@ textarea.text-input { resize: vertical; min-height: 72px; }
   .topbar { padding: 0 16px; }
 }
 </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -639,7 +721,7 @@ function usedByHtml(usedBy, keyId) {
   const extra = usedBy.length - MAX_SHOWN;
 
   const avatarsHtml = shown.map((u, i) =>
-    `<div class="avatar" style="${avatarStyle(i)}" title="${esc(u)}">${initials(u)}</div>`
+    `<div class="avatar" style="${avatarStyle(i)}" data-name="${esc(u)}" title="${esc(u)}">${initials(u)}</div>`
   ).join("");
 
   const countHtml = extra > 0
@@ -649,7 +731,10 @@ function usedByHtml(usedBy, keyId) {
   const popoverRows = usedBy.map((u, i) => `
     <div class="player-row">
       <div class="player-avatar" style="${avatarStyle(i)}">${initials(u)}</div>
-      <span class="player-name">${esc(u)}</span>
+      <div style="display:flex;flex-direction:column;min-width:0">
+        <span class="player-name">${esc(u)}</span>
+        <span class="player-name-secondary">Active user</span>
+      </div>
     </div>
   `).join("");
 
@@ -660,7 +745,7 @@ function usedByHtml(usedBy, keyId) {
         ${countHtml}
       </div>
       <div class="players-popover" id="popover-${keyId}">
-        <div class="popover-header">Players (${usedBy.length})</div>
+        <div class="popover-header" data-count="${usedBy.length}">Players</div>
         ${popoverRows}
       </div>
     </div>
