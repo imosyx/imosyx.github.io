@@ -451,7 +451,7 @@ textarea.text-input { resize: vertical; min-height: 72px; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 0;
+  padding: 5px 0;
 }
 .usedby-avatar {
   width: 22px;
@@ -471,6 +471,44 @@ textarea.text-input { resize: vertical; min-height: 72px; }
   font-weight: 600;
   color: var(--text);
   letter-spacing: 0.01em;
+}
+
+/* Click-to-expand dropdown */
+.usedby-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 200;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  min-width: 200px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.usedby-dropdown.open {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+.usedby-dropdown::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 18px;
+  width: 10px;
+  height: 10px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border2);
+  border-top: 1px solid var(--border2);
+  transform: rotate(45deg);
+  z-index: -1;
 }
 </style>
 <base target="_blank">
@@ -771,13 +809,33 @@ function initials(name) {
 
 function usedByHtml(usedBy, keyId) {
   if (!usedBy || !usedBy.length) return "";
-  const rows = usedBy.map((u, i) => `
+  const MAX_SHOWN = 3;
+  const shown = usedBy.slice(0, MAX_SHOWN);
+  const extra = usedBy.length - MAX_SHOWN;
+
+  const avatarsHtml = shown.map((u, i) =>
+    `<div class="avatar" style="${avatarStyle(i)}" title="${esc(u)}">${initials(u)}</div>`
+  ).join("");
+
+  const countHtml = extra > 0 ? `<span class="avatar-count">+${extra}</span>` : "";
+
+  const allRows = usedBy.map((u, i) => `
     <div class="usedby-row">
       <div class="usedby-avatar" style="${avatarStyle(i)}">${initials(u)}</div>
       <span class="usedby-name">${esc(u)}</span>
     </div>
   `).join("");
-  return `<div class="usedby-list">${rows}</div>`;
+
+  return `
+    <div class="avatar-stack-wrap" onclick="event.stopPropagation()">
+      <div class="avatar-stack" onclick="toggleUsedBy('usedby-${keyId}', event)">
+        ${avatarsHtml}${countHtml}
+      </div>
+      <div class="usedby-dropdown" id="usedby-${keyId}">
+        ${allRows}
+      </div>
+    </div>
+  `;
 }
 
 function togglePopover(id, e) {
@@ -785,14 +843,23 @@ function togglePopover(id, e) {
   const el = document.getElementById(id);
   if (!el) return;
   const isOpen = el.classList.contains("open");
-  // Close all
   document.querySelectorAll(".players-popover.open").forEach(p => p.classList.remove("open"));
   if (!isOpen) el.classList.add("open");
 }
 
-// Close popovers when clicking outside
+function toggleUsedBy(id, e) {
+  e.stopPropagation();
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isOpen = el.classList.contains("open");
+  document.querySelectorAll(".usedby-dropdown.open").forEach(p => p.classList.remove("open"));
+  if (!isOpen) el.classList.add("open");
+}
+
+// Close popovers and dropdowns when clicking outside
 document.addEventListener("click", () => {
   document.querySelectorAll(".players-popover.open").forEach(p => p.classList.remove("open"));
+  document.querySelectorAll(".usedby-dropdown.open").forEach(p => p.classList.remove("open"));
 });
 
 function renderKeys(keys) {
