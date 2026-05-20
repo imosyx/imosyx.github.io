@@ -439,6 +439,39 @@ textarea.text-input { resize: vertical; min-height: 72px; }
   .stats-row { display: none; }
   .topbar { padding: 0 16px; }
 }
+
+/* Downward list of users */
+.usedby-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+.usedby-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.usedby-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  border: 2px solid var(--bg3);
+}
+.usedby-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
 </style>
 <base target="_blank">
 </head>
@@ -738,41 +771,13 @@ function initials(name) {
 
 function usedByHtml(usedBy, keyId) {
   if (!usedBy || !usedBy.length) return "";
-  const MAX_SHOWN = 3;
-  const shown = usedBy.slice(0, MAX_SHOWN);
-  const extra = usedBy.length - MAX_SHOWN;
-
-  // Build avatars with inline name preview on hover
-  const avatarsHtml = shown.map((u, i) =>
-    `<div class="avatar" style="${avatarStyle(i)}" data-name="${esc(u)}" title="${esc(u)}">${initials(u)}</div><span class="avatar-name-preview">${esc(u)}</span>`
-  ).join("");
-
-  const countHtml = extra > 0
-    ? `<span class="avatar-count">+${extra}</span>`
-    : `<span class="avatar-count" style="font-size:10px;color:var(--text3)">${usedBy.length} player${usedBy.length !== 1 ? "s" : ""}</span>`;
-
-  const popoverRows = usedBy.map((u, i) => `
-    <div class="player-row">
-      <div class="player-avatar" style="${avatarStyle(i)}">${initials(u)}</div>
-      <div style="display:flex;flex-direction:column;min-width:0">
-        <span class="player-name">${esc(u)}</span>
-        <span class="player-name-secondary">Active user</span>
-      </div>
+  const rows = usedBy.map((u, i) => `
+    <div class="usedby-row">
+      <div class="usedby-avatar" style="${avatarStyle(i)}">${initials(u)}</div>
+      <span class="usedby-name">${esc(u)}</span>
     </div>
   `).join("");
-
-  return `
-    <div class="avatar-stack-wrap" onclick="event.stopPropagation()">
-      <div class="avatar-stack" onclick="togglePopover('popover-${keyId}', event)">
-        ${avatarsHtml}
-        ${countHtml}
-      </div>
-      <div class="players-popover" id="popover-${keyId}">
-        <div class="popover-header" data-count="${usedBy.length}">Players</div>
-        ${popoverRows}
-      </div>
-    </div>
-  `;
+  return `<div class="usedby-list">${rows}</div>`;
 }
 
 function togglePopover(id, e) {
